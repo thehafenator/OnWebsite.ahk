@@ -36,7 +36,7 @@ Once the blue rectangle is close to the rectangle, press Escape or F1 to stop ca
 
 6. Next, look at the right side of the screen. The Action should be "Click()". Now press the Add element button on the top right and you should get this:
 ![image](https://github.com/user-attachments/assets/b69b96c8-e5b2-4995-b4ef-e42394f5c9f6)
-
+```
 browser := "chrome.exe"
 
 try
@@ -44,7 +44,7 @@ try
 browserEl := UIA.ElementFromHandle("ahk_exe " browser)
 browserEl.WaitElement({LocalizedType:"button", Name:"Delete"}, 1000).Click()
 }
-
+```
 
 5. Press, "Test" to see if this combination will work. The UIA program will attempt to click the button. If successful, the email will be deleted. If not, try using "Invoke()" or "ControlClick()" instead of Click()".
 
@@ -52,27 +52,29 @@ browserEl.WaitElement({LocalizedType:"button", Name:"Delete"}, 1000).Click()
 
 7. Format it into your code as follows:
 
-; Include these Libraries(dependencies) by using the #Include function. Note that you will need the OnWebsite.ahk and the UIA-v2-main folder to be in the same folder as your script:
-#Include OnWebsite.ahk
-#Include UIA-v2-main\Lib\UIA.ahk
-#Include UIA-v2-main\Lib\UIA_Browser.ahk
+```
+    ; Include these Libraries(dependencies) by using the #Include function. Note that you will need the OnWebsite.ahk and the UIA-v2-main folder to be in the same folder as your script:
 
-; Next, specify we only want this to be on gmail.com. It only needs to be a short, identifiable part of the URL.
-#HotIf OnWebsite("mail.google.com")
+    #Include OnWebsite.ahk
+    #Include UIA-v2-main\Lib\UIA.ahk
+    #Include UIA-v2-main\Lib\UIA_Browser.ahk
 
-; typical autohotkey formatting for version 2 (^d:: is control delete, and the code following in {} will be run. ; the formatting from the macropad creator using the 'browser' variable, along with the Onwebsite library will allow this hotkey to run on chrome, firefox, or other browsers. (In other words, you won't have to specify the browser because OnWebsite will detect that for you.)
-^d::
-{
-try
-{
-browserEl := UIA.ElementFromHandle("ahk_exe " browser)
-browserEl.WaitElement({LocalizedType:"button", Name:"Delete"}, 1000).Click()
-}
-}
+    ; Next, specify we only want this to be on gmail.com. It only needs to be a short, identifiable part of the URL.
+    #HotIf OnWebsite("mail.google.com")
 
-; close the conditional hotif statement with an ending #Hotif
-#Hotif
+    ; typical autohotkey formatting for version 2 (^d:: is control delete, and the code following in {} will be run. ; the formatting from the macropad creator using the 'browser' variable, along with the Onwebsite library will allow this hotkey to run on chrome, firefox, or other browsers. (In other words, you won't have to specify the browser because OnWebsite will detect that for you.)
+    ^d::
+    {
+    try
+    {
+    browserEl := UIA.ElementFromHandle("ahk_exe " browser)
+    browserEl.WaitElement({LocalizedType:"button", Name:"Delete"}, 1000).Click()
+    }
+    }
 
+    ; close the conditional hotif statement with an ending #Hotif
+    #Hotif
+```
 
 Now, run the script. When you are on Gmail, pressing control and d will attempt to hit the delete button. It will attempt to look for 1 second (1000 milliseconds). 
 For a more detailed tutorial, see the official wiki, which also links several tutorials: https://github.com/Descolada/UIAutomation/wiki. These tutorials do get somewhat advanced, so I did try to show the most basic principle in this readme and Sample file - clicking on certain element. Paired with Onwebsite, you can now create hotkeys for Websites by targeting their URL, not just the Window Title, Class, or Exe. 
