@@ -1,5 +1,4 @@
-# OnWebsite - Website-Specific-Hotkeys
-Website Specific Hotkey Library for AutoHotkey Version 2
+# OnWebsite: Website-Specific-Hotkeys in Autohotkey Version 2
 
 
 I wrote this script that I think should be helpful in creating hotkeys that are context sensitive to different websites depending on their URL. I had another approach to this, but I believe this approach is much easier to write/edit and is more robust.
