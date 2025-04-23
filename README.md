@@ -1,31 +1,23 @@
 # OnWebsite: Website-Specific-Hotkeys in Autohotkey Version 2
 
+OnWebsite is an Autohotkey version 2 library that leverages the UIA.ahk framework to target specific URLs for use in #Hotif statements. This allows users to make hotkeys that are context specific to one website. (I.e. you could use control d on gmail in chrome and not have it affect control d on a different website). I orginally wrote this for myself to make it much easier to expand my library of hotkeys in Autothotkey (The alternative is using TitleMatchMode and specifying every browser that you might use for this hotkey each time). I have over 75 different websites I currently use that keeps them context sensitive.
 
-I wrote this script that I think should be helpful in creating hotkeys that are context sensitive to different websites depending on their URL. I had another approach to this, but I believe this approach is much easier to write/edit and is more robust.
+How do we target the URL? Simply put, the script waits for either the program or the window title to change. When either of these events happen, it uses the UIA library to find the value of the current URL, which is then cached as the most current website. When a user has presses website-specific hotkey like using ^n in gmail:
 
-A few challenges to writing context-sensitive keyboard shortcuts specific to websites with HotIf statements are that you typically have to either specify the page title (which often changes on within the same website, making it unreliable), specify the the window class (which means you can only use a hotkey once, like control d delete an email in Gmail, but can't use control d again for another purpose on a different website) or specify exe (with similar downsides to the class).
-
-How this works:
-The OnWebsite("") function runs each time the title of a window is changed, or when applications change. If a URL is available through GetBrowserHandle() and GetBrowserURL(), it attempts to match it with the value inside of OnWebsite(""). For example, #HotIf OnWebsite("mail.google.com") will check to see if mail.google.com is contained within the URL. If that is true, the block between #HotIf OnWebsite("mail.google.com") and the next #HotIf become available when the website is open. This means you can have hotkeys that you can use for different URLs, can reuse the same hotkey to do different things on different websites, and the same code can be used across different browsers without issue, all retaining similar syntax to #Hotif blocks in AutoHotkey Version 2 already.
-
-
-
-See the "Sample OnWebsite.ahk" script for ideas of formatting:
-
+```
 #Hotif OnWebsite("gmail.com")
 ^n::
 {
 Msgbox("this is a test on gmail.")
 }
 #Hotif
+```
 
-The update on 04.23.2025 will have the script retry to grab the URL from the title bar if the window title changes before the URL is available, and the user can preset how many and how often it will attempt to grab the URL a second time. While 99 percent of the time, this won't be the case and the script will default to the last cached URL, this improvement will allow hotkeys to work after a new page loads. Additionally, it stops searching if the Wintitle is "New Tab" or is in a non-browser application.
+The script checks the currently cached URL against the string, "gmail.com". If it matches, it allows the code to run. See additional formatting/ideas the "Sample OnWebsite.ahk" script for ideas of formatting. For those unfamiliar with the UIA library, here is a mini tutorial:
 
-Additionally, I had made slight changes to the version of the UIA library I have placed here is from here: https://github.com/Descolada/UIA-v2/blob/main/Lib/UIA.ahk. More specifically, I made the change in the way the UIA tree inspector (double click UIA.ahk to run) defaults writing it's syntax so that it will more likely work in any browser. This is more for personal preference than anything.
+Let's look at its most basic use: writing a hotkey to click a button. For this example, we will click the 'delete' button in Gmail. Feel free to follow along:
 
-For example, a mini-tutorial for the most basic use: writing a hotkey to click a button. For this example, we will click the 'delete' button in Gmail. Feel free to follow along:
-
-1. Double click UIA.ahk (within the UIA folder, then the Lib folder) to open the tree viewer. Press "Show macro sidebar" on the bottom right to show the Macropad creator section.
+1. Open the OnWebsite folder. Double click UIA.ahk within the UIA folder, then the Lib folder, to open the tree viewer. Press "Show macro sidebar" on the bottom right to show the Macropad creator section.
 2. Capture Element (a button, icon, link, etc. you want to target). To do this, click on Start Capturing on the bottom left (or press F1 or Escape) and try hovering around the screen with the mouse. If you have gmail pulled up, see if you can get it over the delete button.
 Once the blue rectangle is close to the rectangle, press Escape or F1 to stop capturing. You should notice on the middle column a tree that shows all available elements (things you can target on a webpage or application). Left click the one called, (button "Delete") - without the parenthesis - in the middle column. This will now let you see all available information in the properties section on the left.
 ![image](https://github.com/user-attachments/assets/cbcc94b2-e4bf-47b7-b4e1-6ed8002d7c6e)
