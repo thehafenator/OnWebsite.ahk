@@ -4,7 +4,7 @@
 
 ReadMe:
 
-TLDR: On Website is a class that caches the current website url on window title change or application using event listeners, allowing users to make context sensitive hotkeys and hotstrings based on the URL itself. It uses Descolada's UIA library (https://github.com/Descolada/UIA-v2) and a set timer call to quietly update the url in the background (typically 15ms). Because #Hotif blocks are evaluated at the time of execution, caching the url allows a quick string comparison to perform true, close to 0 latency compared to a if WinActive() call. 
+TLDR: THe On class is an AutoHotkey Version 2 Library that caches the current website url on window title change or application using event listeners, allowing users to make context sensitive hotkeys and hotstrings based on the URL, rather than the wintitle, class, or exe. It uses Descolada's UIA library (https://github.com/Descolada/UIA-v2) and a set timer call to quietly update the url in the background (typically 15ms). Because #Hotif blocks are evaluated at the time of execution, caching the url allows a quick string comparison to perform true, with close to latency when executed, similar to a normal if WinActive() call. 
 
 1 . Class On Purpose:
 The On class is a AutoHotkey Version 2 library designed to make it easier for users to make context sensitive hotkeys/hotstrings based on the current URL. For example, I could use a block like this, where pressing ^d would show the message box on onlygmail.com:
