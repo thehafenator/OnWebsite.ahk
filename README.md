@@ -1,71 +1,104 @@
 # OnWebsite: Website-Specific-Hotkeys in Autohotkey Version 2
 
-OnWebsite is an Autohotkey version 2 library that leverages the UIA.ahk framework to target specific URLs for use in #Hotif statements. This allows users to make hotkeys that are context specific to one website. (I.e. you could use control d on gmail in chrome and not have it affect control d on a different website). I orginally wrote this for myself to make it much easier to expand my library of hotkeys in Autothotkey (The alternative is using TitleMatchMode and specifying every browser that you might use for this hotkey each time). I have over 75 different websites I currently use that keeps them context sensitive.
+ReadMe:
 
-How do we target the URL? Simply put, the script waits for either the program or the window title to change. When either of these events happen, it uses the UIA library to find the value of the current URL, which is then cached as the most current website. When a user has presses website-specific hotkey like using ^n in gmail:
+TLDR: On Website is a class that caches the current website url on window title change or application using event listeners, allowing users to make context sensitive hotkeys and hotstrings. It uses Descolada's UIA library (https://github.com/Descolada/UIA-v2) and a set timer call to quietly update the url in the background (typically 15ms). Because #Hotif blocks are evaluated at the time of execution, caching the url allows a quick string comparison to perform true, close to 0 latency compared to a if WinActive() call. 
 
-```
-#Hotif OnWebsite("gmail.com")
-^n::
-{
-Msgbox("this is a test on gmail.")
-}
+1 . Class On Purpose:
+The On class is a AutoHotkey Version 2 library designed to make it easier for users to make context sensitive hotkeys/hotstrings based on the current URL. For example, I could use a block like this, where pressing ^d would show the message box on onlygmail.com:
+
+#Include OnWebsite.ahk
+
+#Hotif On.Website("mail.google.com")
+^d::MsgBox("On Gmail")
 #Hotif
-```
 
-The script checks the currently cached URL against the string, "gmail.com". If it matches, it allows the code to run. See additional formatting/ideas the "Sample OnWebsite.ahk" script for ideas of formatting. For those unfamiliar with the UIA library, here is a mini tutorial:
+Normally, #Hotif blocks are used with TitleMatchMode set to 2 and doing something like this:
+#Hotif WinActive("Gmail")
+^d::MsgBox("On Gmail")
+#Hotif
 
-Let's look at its most basic use: writing a hotkey to click a button. For this example, we will click the 'delete' button in Gmail. Feel free to follow along:
+2. Issues with current alternatives:
+The issue this creates is if another page contains, "Gmail" in the title, making it a bit unreliable. For example:
+a) Editing a script in notepad that contains, "gmail" in the in title, this hotkey will trigger there.
+b) Other shortcuts you define also match words in the title. For example: 
 
-1. Open the OnWebsite folder. Double click UIA.ahk within the UIA folder, then the Lib folder, to open the tree viewer. Press "Show macro sidebar" on the bottom right to show the Macropad creator section.
-2. Capture Element (a button, icon, link, etc. you want to target). To do this, click on Start Capturing on the bottom left (or press F1 or Escape) and try hovering around the screen with the mouse. If you have gmail pulled up, see if you can get it over the delete button.
-Once the blue rectangle is close to the rectangle, press Escape or F1 to stop capturing. You should notice on the middle column a tree that shows all available elements (things you can target on a webpage or application). Left click the one called, (button "Delete") - without the parenthesis - in the middle column. This will now let you see all available information in the properties section on the left.
-![image](https://github.com/user-attachments/assets/cbcc94b2-e4bf-47b7-b4e1-6ed8002d7c6e)
+#Hotif WinActive("Amazon")
+^d::MsgBox("On Amazon")
+#Hotif
 
-4. Select and copy desired properties to send to the macro sidebar. To do this, hold down control and left click on the row that says, "Name Delete" (without the ""), then continue to hold control down and click "Localized type, button". (Note that if Localized type and Name do not have these values, you are not selected on the delete button. Try clicking on (button "Delete") - without the () -  in the middle of the UIA tree.) You will notice a tooltip appear that says, "Copied: LocalizedType:"button", Name:"Delete". 
-![image](https://github.com/user-attachments/assets/a1211f03-970a-4f8d-989f-9b942fb3401b)
+#Hotif WinActive("Gmail")
+^d::MsgBox("On Gmail")
+#Hotif
 
-6. Next, look at the right side of the screen. The Action should be "Click()". Now press the Add element button on the top right and you should get this:
-![image](https://github.com/user-attachments/assets/b69b96c8-e5b2-4995-b4ef-e42394f5c9f6)
-```
-browser := "chrome.exe"
+On Gmail, each time you view a message, it uses the Email Subject as the Wintitle. If you received an email from Amazon, it's likely that "Amazon" 
+would be in your title. I like to use ^d as delete in various applications, but if I was on Gmail and I ran ^d while viewing the Amazon email, it will trigger the Amazon shortcut because it is defined first. Even Specifying #Hotif WinActive("Gmail ahk_exe chrome.exe") wouldn't be sufficient, because all websites will share Exe and class on the same browser. 
+c) You want to have different shortcuts on different areas of the same website, but they both contain the same name, "Gmail". 
 
-try
+3. Solution: URL specific context - #Hot if, caching, and performance
+How #Hotif normally works:
+#Hotif blocks are evaluated at the time a key is pressed. If the condition to the right of #Hotif is true, it allows the hotkey to be triggered. (this is how people made contex-specific hotkeys and triggers other than just #Hotif WinActive(). Ex. using Mouse location (ex. scroll over taskbar to change volume), Key state (capslock remapping scripts), etc.)
+
+The UIA Library is used to quickly grab the value of the title bar cache evaluate the url. This is grabbed once on script load, and updated  through even listeners each time the active window changes or the name of the current window is changed. 
+
+Caching the URL this way offers a few advantages:
+a) Runs asyncronously
+b) While cache updates using a settimer, which won't tie up your hotkeys/hotstrings and allow the currently cached url to be used even while it is still in the process of getting update. For example, deleting an email will change the URL, but you don't have to wait for the URL to be updated befor your next function call. 
+b) On code execution, your script won't make any unnecessary UIA calls
+c) A map is made of the titles of the most recent 8 (you can change this in userconfig) Wintitles and pages. Each time the script detects change, it checks this map first before making any unnecessary UIA calls.
+
+Best practices:
+Part 1. - Use the same hotkey on similar URLs - pace the the most specific/longest on top
+a) For example, to use (separate hotkeys for editing a google calendar event and the main google calendar page, place the more specific/long one at the top. In AutoHotkey Version 2 in general, when multiple #hotif conditions return true, the one written first (lower line number) is executed first. 
+
+#Include OnWebsite.ahk
+
+#HotIf On.Website("calendar.google.com/calendar/u/0/r/eventedit")
+~LCtrl up::(A_ThisHotkey=A_PriorHotkey&&A_TimeSincePriorHotkey<200)&&googlecalendar.addemailnotifications()
+#HotIf
+
+#HotIf On.Website("calendar.google.com")
+~LCtrl up::(A_ThisHotkey=A_PriorHotkey&&A_TimeSincePriorHotkey<200)&&googlecalendar.togglesidebar()
+#HotIf
+
+For this example, Double Clicking the lctrl button within 200 ms of itself other will either add email notifications (if on edit event) or toggle the sidebar (if on the main one). If we were to switch the order, and have the normal ("calendar.google.com") above, it would trigger only 'togglesidebar' on both urls, because (both URLs contain calendar.google.com). 
+
+
+Part 2. You don't always have to use #Hotifs, either. You can use them for simple If statements as well, especially if easier to do mid function. To check if the current url contains or doesn't contain "sampleurl" on the inside, you could use the line if (InString(On.LastResult.url, "sampleurl")) or if (!InString(On.LastResult.url, "sampleurl")), respectively. 
+
+For example, I could rewrite the earlier set of fucntions like this (to avoid ordering issues between #hotif blocks):  
+#Include OnWebsite.ahk
+
+~LCtrl up::(A_ThisHotkey=A_PriorHotkey&&A_TimeSincePriorHotkey<200){ ; this line just means if I double tap control (within 200 ms, and it is the same key as the last hotkey) then it will trigger. The ~ allows Lctrl to be used normally. 
+If InStr(On.LastResult.url, "calendar.google.com/calendar/u/0/r/eventedit")
 {
-browserEl := UIA.ElementFromHandle("ahk_exe " browser)
-browserEl.WaitElement({LocalizedType:"button", Name:"Delete"}, 1000).Click()
+googlecalendar.addemailnotifications()
 }
-```
+if InStr(On.LastResult.url, "calendar.google.com/") 
+{
+googlecalendar.togglesidebar()
+}
+}
 
-5. Press, "Test" to see if this combination will work. The UIA program will attempt to click the button. If successful, the email will be deleted. If not, try using "Invoke()" or "ControlClick()" instead of Click()".
+Another example for using a simple 'if' depending on the url - a shortcut to run/login to website, but only run the login information if we aren't already logged in:
 
-6. If that did work simply copy the above code, except for "browser := "chrome.exe".
+Numpad2::{
+If !On.Website("mywebsite") ; if we are currently not on the mywebsite, run it
+{
+RunWait("mywebsite.com")
+}
+; possibly logic here to make sure the website/specific element has loaded to ensure it works
+if !InStr(On.LastResult.url, "login/") ; or the actual different url for login  ; only login if the login url is here
+{
+mywebsitelogin()
+}
+}
 
-7. Format it into your code as follows:
+Part 3:
+4. Additional information: Config/Performance
+A) See the static userconfig to change the cache speed/accuracy with Mode, maxcacheentries, retry delay in ms, and maxretries if you encounter performance issues.
+B) See "exclusions" for exe, classes, and wintitles you want to skip the URL cache. For example, the "New Tab" page and Dialogue boxes like, "Open"/"Save as", etc., don't contain a URL. Add additional programs/pages here if they don't load.
+C) The On.website method ensures that both the URL cache is up to date and that a browser is active. Browsers are defined with their full Exe class because chromium browsers often share classes and exe with other chromium browsers. 
+D) To keep URL calls to a minimum, I reccommend Only Running one script with at a time On.Website included if you run into issues. 
+E) Run On.DebugMsgBox() to see information about what is currently running. 
 
-```
-    ; Include these Libraries(dependencies) by using the #Include function. Note that you will need the OnWebsite.ahk and the UIA-v2-main folder to be in the same folder as your script:
-
-    #Include OnWebsite.ahk
-    #Include UIA-v2-main\Lib\UIA.ahk
-    #Include UIA-v2-main\Lib\UIA_Browser.ahk
-
-    ; Next, specify we only want this to be on gmail.com. It only needs to be a short, identifiable part of the URL.
-    #HotIf OnWebsite("mail.google.com")
-
-    ; typical autohotkey formatting for version 2 (^d:: is control delete, and the code following in {} will be run. ; the formatting from the macropad creator using the 'browser' variable, along with the Onwebsite library will allow this hotkey to run on chrome, firefox, or other browsers. (In other words, you won't have to specify the browser because OnWebsite will detect that for you.)
-    ^d::
-    {
-    try
-    {
-    browserEl := UIA.ElementFromHandle("ahk_exe " browser)
-    browserEl.WaitElement({LocalizedType:"button", Name:"Delete"}, 1000).Click()
-    }
-    }
-
-    ; close the conditional hotif statement with an ending #Hotif
-    #Hotif
-```
-
-Now, run the script. When you are on Gmail, pressing control and d will attempt to hit the delete button. It will attempt to look for 1 second (1000 milliseconds). 
-For a more detailed tutorial, see the official wiki, which also links several tutorials: https://github.com/Descolada/UIAutomation/wiki. These tutorials do get somewhat advanced, so I did try to show the most basic principle in this readme and Sample file - clicking on certain element. Paired with Onwebsite, you can now create hotkeys for Websites by targeting their URL, not just the Window Title, Class, or Exe. 
