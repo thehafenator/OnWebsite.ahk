@@ -10,7 +10,7 @@
     Send "c"  
 }
 
-;Control + d  or ^Capslock to delete a message or draft. This utilizes the UIA version 2 library by Descolada. The 'browser' variable in this case will be retrieved from the OnWebsite("") command through GetBrowserHandle() and GetBrowserURL(), so this approach will work with any browser without needing to alter the code.
+;Control + d  or ^Capslock to delete a message or draft. This utilizes the UIA version 2 library by Descolada. I like using ElementFromHandle(WinActive("A") || WinExist("A")) to restrict the search to the currently active page. 
 ^d::
 ^Capslock::
 { 
