@@ -4,7 +4,7 @@
 #Include UIA-v2-main\Lib\UIA_Browser.ahk
 
 
-#HotIf OnWebsite("mail.google.com")
+#HotIf On.Website("mail.google.com")
 ; Control + n to create new message
 ^n::{ 
     Send "c"  
