@@ -4,7 +4,7 @@
 
 1 . Class On Purpose:
 The On class is a AutoHotkey Version 2 library designed to make it easier for users to make context sensitive hotkeys/hotstrings based on the current URL. For example, I could use a block like this, where pressing ^d would show the message box on onlygmail.com:
-``
+```
 #Include OnWebsite.ahk
 
 #Hotif On.Website("mail.google.com")
