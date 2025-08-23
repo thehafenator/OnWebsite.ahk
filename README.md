@@ -1,7 +1,7 @@
-# OnWebsite: Website-Specific Hotkeys in AutoHotkey v2
+# OnWebsite.ahk Website-Specific Hotkeys in AutoHotkey v2
 
 ## TL;DR
-**OnWebsite** is a class that caches the current website URL on window title change or application using event listeners.  
+**On** is a class that caches the current website URL on window title change or application using event listeners.  
 This allows you to create **context-sensitive hotkeys and hotstrings** that are URL-specific.  
 
 It uses [Descolada's UIA library](https://github.com/Descolada/UIA-v2) and a `SetTimer` call to quietly update the URL in the background (default: 15 ms).  
