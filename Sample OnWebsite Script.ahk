@@ -14,13 +14,15 @@
 ^d::
 ^Capslock::
 { 
+SetCapsLockState("Off")
     Try { 
-        SetCapsLockState("Off"), UIA.ElementFromHandle(WinActive("ahk_exe " browser)).WaitElement({LocalizedType:"button", Name:"Delete"}, 100).Click() 
+       browserEl := UIA.ElementFromHandle(WinActive("A") || WinExist("A"))
+       browserEl.WaitElement({LocalizedType:"button", Name:"Delete"}, 100).Click() 
     } 
     catch{
         try
             {
-            browserEl := UIA.ElementFromHandle("ahk_exe " browser)
+            browserEl := UIA.ElementFromHandle(WinActive("A") || WinExist("A"))            
             browserEl.WaitElement({LocalizedType:"text", Name:"Discard drafts"}, 1000).Click()
             }
        }
@@ -28,7 +30,7 @@
 
 ; Search all emails with control f (instead of find on page)
 ^f::{ 
-    Try UIA.ElementFromHandle(WinActive("ahk_exe " browser)).WaitElement({Name:"Search mail", LocalizedType:"edit"}, 1000).ControlClick() 
+    Try UIA.ElementFromHandle(WinActive("A") || WinExist("A")).WaitElement({Name:"Search mail", LocalizedType:"edit"}, 1000).ControlClick() 
     Send "^{a}"
 }
 
