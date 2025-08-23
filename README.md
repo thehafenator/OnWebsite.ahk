@@ -26,6 +26,7 @@ Example:
 Normally, you might do this with `WinActive`:
 
 ```
+#Include OnWebsite.ahk
 #HotIf WinActive("Gmail")
 ^d::MsgBox("On Gmail")
 #HotIf
@@ -44,6 +45,7 @@ But that approach is unreliable because page titles often overlap with unrelated
 2. **Multiple shortcuts with overlapping titles**  
 
 ```
+#Include OnWebsite.ahk
 #HotIf WinActive("Amazon")
 ^d::MsgBox("On Amazon")
 #HotIf
