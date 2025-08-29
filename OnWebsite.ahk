@@ -420,7 +420,7 @@ class On {
                 } else {
                     this.LastResult := {url: "", browser: this.GetBrowserHandle(), timestamp: A_TickCount}
                 }
-            } else 
+            } 
         }
     }
     
