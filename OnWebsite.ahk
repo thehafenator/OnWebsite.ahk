@@ -1,4 +1,4 @@
-#Requires AutoHotkey v2.0 ; Version 08.23.2025
+#Requires AutoHotkey v2.0 ; Version 9.15.2025
 
 /*
 
@@ -108,40 +108,45 @@ E) Run On.DebugMsgBox() to see information about what is currently running.
 */
 
 
-class On {
+
+class On { 
 
     static userconfig := {
         Mode: "Fast",  ;  "Fast" or "Accurate". "Fast" is reccommended in most cases.  Accurate uses the DOM to retrieve url with 'https://', but slower to update because it needs to connect to the DOM with UIA_Browser.ahk. For simple hotkeys, Fast is sufficient
         MaxCacheEntries: 8, ; number of website pages to keep before updating
-        RetryDelay: 100, ; in milliseconds. if we are unable to find the URL, we wait this amount and try again. 
-        MaxRetries: 4 ; 
+        RetryDelay: 100, ; in milliseconds. if we are unable to find the URL, we wait this amount and try again.
+        MaxRetries: 4 ;
     }
-    
-    static LastResult := {url: "", browser: "", timestamp: 0}
-    
+
+    static LastResult := { url: "", browser: "", timestamp: 0, inBrowser: false }
+
     static currentstate := {
         LastActiveWindow: 0,
         LastTitle: "",
         Browser: "",
         InBrowserApp: false,
-        TitleURLCache: Map()
+        TitleURLCache: Map(),
+        ActiveWindow: ""
     }
-    
-    static Exclusions := {
-        WinTitles: [
-            "New Tab", "Nueva pestaña", "Neuer Tab", "Nouvel onglet", 
-            "Novo separador", "Новая вкладка", "新标签页", "新分頁", 
-            "Start Page", "Speed Dial", "Open", "Save As", "UIAViewer.ahk", "Edit Current"
-        ],
-        Exes: [
-            "autohotkey64.exe",
-            "anki.exe"
-        ],
-        Classes: [
-            "#32770"  ; Standard dialog class
-        ]
-    }
-    
+
+static Exclusions := {
+    WinTitles: [
+        "New Tab", "Nueva pestaña", "Neuer Tab", "Nouvel onglet", 
+        "Novo separador", "Новая вкладка", "新标签页", "新分頁", "Library",
+        "Start Page", "Speed Dial", "Open", "Save As", "UIAViewer.ahk", "Edit Current", "New split screen"
+    ],
+    WinTitlesExact: [
+        "Zen Browser" ; In Zen, new tabs are called "Zen Browser", without "New Tab" which slows things down. If it matches this exactly, it will skip.
+    ],
+    Exes: [
+        "autohotkey64.exe",
+        "anki.exe"
+    ],
+    Classes: [
+        "#32770"  ; Standard dialog class
+    ]
+}
+
     static Initialize() {
         ; Hooks and initialization state as local static variables
         static ForegroundHook := 0
@@ -153,7 +158,36 @@ class On {
         this.InitializeEventHooks()
         this.InitialURLCache()
     }
-    
+
+    static WinWaitActive(pattern, timeout := 5000) {
+        startTime := A_TickCount
+        Loop {
+            if (this.Website(pattern)) {
+                return true
+            }
+            if (A_TickCount - startTime > timeout) {
+                return false
+            }
+            Sleep(50)  ; Check every 50ms
+        }
+    }
+
+    static GetBrowserElement() {
+        currentWin := WinActive("A")
+        if (currentWin == 0)
+            return ""
+
+        currentBrowser := this.GetBrowserHandle()
+        if (currentBrowser == "")
+            return ""
+
+        try {
+            return UIA.ElementFromHandle(currentWin)
+        } catch {
+            return ""
+        }
+    }
+
 
     static Website(pattern) {
         this.Initialize()
@@ -171,13 +205,13 @@ class On {
         }
         this.currentstate.InBrowserApp := true
         this.currentstate.Browser := currentBrowser
-        
+
         ; Check if current window is excluded
         currentTitle := WinGetTitle(currentWin)
         if (this.IsExcludedWindow(currentTitle)) {
             return false
         }
-        
+
         ; Check title-URL cache for fast response
         if (this.currentstate.TitleURLCache.Has(currentTitle)) {
             cachedResult := this.currentstate.TitleURLCache[currentTitle]
@@ -189,7 +223,7 @@ class On {
                     this.LastResult := cachedResult
                     return false
                 }
-            } 
+            }
         }
         ; Use the cached URL almost always
         try {
@@ -208,7 +242,7 @@ class On {
             this.currentstate.TitleURLCache[currentTitle] := result
             this.LastResult := result
         }
-        
+
         ; Check if the fresh URL contains the pattern
         try {
             return InStr(result.url, pattern) > 0
@@ -216,60 +250,79 @@ class On {
             return false
         }
     }
-    
+
+    ; -1 waits forever (by default without specifying, 1000, will be 1000 milliseconds, etc.) pattern is desired url.
+    static WaitWebsiteActive(pattern, timeout := -1) {
+        startTime := A_TickCount
+        while (true) {
+            if (this.Website(pattern)) {
+                return true
+            }
+            if (timeout != -1 && A_TickCount - startTime > timeout) {
+                return false
+            }
+            Sleep(50)  ; Check every 50ms
+        }
+    }
+
     ; Get browser URL with mode selection - combines both fast and accurate modes
     static GetBrowserURL(forceRefresh := false) {
         currentTime := A_TickCount
-        
-        if (!forceRefresh && this.LastResult.url != "" 
+
+        if (!forceRefresh && this.LastResult.url != ""
             && this.currentstate.LastTitle == WinGetTitle(this.currentstate.LastActiveWindow)) {
             return this.LastResult
         }
         try currentTitle := WinGetTitle(WinActive("A"))
         try {
             if (this.IsExcludedWindow(currentTitle)) {
-                return {url: "", browser: this.GetBrowserHandle(), timestamp: currentTime}
+                return { url: "", browser: this.GetBrowserHandle(), timestamp: currentTime, inBrowser: false }
             }
         }
         browser := this.GetBrowserHandle()
         if (browser == "") {
-            return {url: "", browser: "", timestamp: currentTime}
+            return { url: "", browser: "", timestamp: currentTime, inBrowser: false }
         }
-        
+
         ; Use mode-specific URL retrieval
         if (this.userconfig.Mode == "Fast") {
             Loop this.userconfig.MaxRetries {
                 url := this.GetAddressBarDirect()
                 if (url != "") {
-                    return {url: url, browser: browser, timestamp: currentTime}
+                    return { url: url, browser: browser, timestamp: currentTime, inBrowser: true }
                 }
                 Sleep(this.userconfig.RetryDelay * A_Index)  ; Progressive backoff
             }
         } else {
             url := this.GetDocumentURL()
         }
-        
-        return {url: url, browser: browser, timestamp: currentTime}
+
+        return { url: url, browser: browser, timestamp: currentTime, inBrowser: (url != "") }
     }
-    
+
     ; Direct UIA address bar access (FAST), may not contain "https://""
     static GetAddressBarDirect() {
         try {
             browserEl := UIA.ElementFromHandle(WinActive("A"))
             try {
-                return browserEl.FindElement([{LocalizedType:"edit", Name:"Address and search bar"}, {AutomationId:"urlbar-input"}]).Value
-            } catch {
-                try {
-                return browserEl.FindElement([{LocalizedType:"edit", Name:"Address and search bar"}, {AutomationId:"urlbar-input"}]).Value
-                } catch {
-                    return ""
-                }
-            }
-        } catch {
+                return browserEl.FindElement([{ LocalizedType: "edit", Name: "Address and search bar" }, { AutomationId: "urlbar-input" }]).Value
+                    ; return browserEl.FindElement({AutomationId:"urlbar-input"}).Value
+            
+            } 
+        ;     catch {
+        ;         try {
+        ;             ; return browserEl.FindElement({AutomationId:"urlbar-input"}).Value
+        ;         } catch {
+        ;             return ""
+        ;         }
+        ;     }
+        ; } 
+        catch {
             return ""
         }
     }
-    
+}
+
     ; Document URL (ACCURATE)
     static GetDocumentURL() {
         try {
@@ -279,65 +332,72 @@ class On {
             return ""
         }
     }
-    
-    static IsExcludedWindow(winTitle := "") {
-        if (winTitle == "") {
-            activeWin := WinActive("A")
-            if (activeWin == 0)
-                return false
-            winTitle := WinGetTitle(activeWin)
-        }
-        
+
+static IsExcludedWindow(winTitle := "") {
+    if (winTitle == "") {
         activeWin := WinActive("A")
         if (activeWin == 0)
             return false
-            
-        ; Check for title exclusions
-        for titlePattern in this.Exclusions.WinTitles {
-            if (InStr(winTitle, titlePattern)) {
-                return true
-            }
-        }
-        
-        ; Check for exe exclusions
-        activeExe := WinGetProcessName(activeWin)
-        for exePattern in this.Exclusions.Exes {
-            if (activeExe == exePattern) {
-                return true
-            }
-        }
-        
-        ; Check for class exclusions
-        activeClass := WinGetClass(activeWin)
-        for classPattern in this.Exclusions.Classes {
-            if (activeClass == classPattern) {
-                return true
-            }
-        }
-        
-        ; Check if it's an empty tab/about:blank
-        if (winTitle == "" || InStr(winTitle, "about:blank")) {
+        winTitle := WinGetTitle(activeWin)
+    }
+
+    activeWin := WinActive("A")
+    if (activeWin == 0)
+        return false
+
+    ; Check for exact title exclusions
+    for titlePattern in this.Exclusions.WinTitlesExact {
+        if (winTitle == titlePattern) {
             return true
         }
-        
-        return false
     }
-    
+
+    ; Check for partial title exclusions
+    for titlePattern in this.Exclusions.WinTitles {
+        if (InStr(winTitle, titlePattern)) {
+            return true
+        }
+    }
+
+    ; Check for exe exclusions
+    activeExe := WinGetProcessName(activeWin)
+    for exePattern in this.Exclusions.Exes {
+        if (activeExe == exePattern) {
+            return true
+        }
+    }
+
+    ; Check for class exclusions
+    activeClass := WinGetClass(activeWin)
+    for classPattern in this.Exclusions.Classes {
+        if (activeClass == classPattern) {
+            return true
+        }
+    }
+
+    ; Check if it's an empty tab/about:blank
+    if (winTitle == "" || InStr(winTitle, "about:blank")) {
+        return true
+    }
+
+    return false
+}
+
     ; Get handle for supported browsers
     static GetBrowserHandle() {
         ; Browser cache as local static variables
         static CachedBrowserEl := ""
         static CachedBrowser := ""
         static CachedBrowserWindow := 0
-        
+
         ; Quick cached check to avoid redundant calls
         currentWin := WinActive("A")
         if (currentWin == CachedBrowserWindow && CachedBrowser != "") {
             return CachedBrowser
         }
-        
+
         CachedBrowserWindow := currentWin
-            if WinActive("ahk_exe chrome.exe ahk_class Chrome_WidgetWin_1")
+        if WinActive("ahk_exe chrome.exe ahk_class Chrome_WidgetWin_1")
             CachedBrowser := "chrome.exe"
         else if WinActive("ahk_exe thorium.exe ahk_class Chrome_WidgetWin_1")
             CachedBrowser := "thorium.exe"
@@ -345,6 +405,8 @@ class On {
             CachedBrowser := "msedge.exe"
         else if WinActive("ahk_exe firefox.exe ahk_class MozillaWindowClass")
             CachedBrowser := "firefox.exe"
+        else if WinActive("ahk_class MozillaWindowClass ahk_exe zen.exe")
+            CachedBrowser := "zen.exe"
         else if WinActive("ahk_exe floorp.exe ahk_class MozillaWindowClass")
             CachedBrowser := "floorp.exe"
         else if WinActive("ahk_exe brave.exe ahk_class Chrome_WidgetWin_1")
@@ -355,19 +417,19 @@ class On {
             CachedBrowser := "vivaldi.exe"
         else
             CachedBrowser := ""
-            
+
         return CachedBrowser
     }
-    
+
     ; Browser cache refresh function
     static BrowserCacheEl(refresh := false) {
         ; Browser cache as local static variables
         static CachedBrowserEl := ""
         static CachedBrowser := ""
-        
+
         this.Initialize()
         currentBrowser := this.GetBrowserHandle()
-        
+
         ; Only refresh if explicitly requested or browser changed
         if (refresh || !CachedBrowserEl || currentBrowser != CachedBrowser) {
             if (currentBrowser != "") {
@@ -380,71 +442,85 @@ class On {
         }
         return CachedBrowserEl
     }
-    
+
     ; Initialize event hooks for window changes
     static InitializeEventHooks() {
         ; Hook handles as local static variables
         static ForegroundHook := 0
         static NameChangeHook := 0
-        
+
         EVENT_SYSTEM_FOREGROUND := 0x0003
         EVENT_OBJECT_NAMECHANGE := 0x800C
-        
+
         ; Create callbacks with proper parameter counts
         ForegroundCallback := CallbackCreate(ObjBindMethod(this, "OnWindowChange"), "F", 7)
-        ForegroundHook := DllCall("SetWinEventHook", "UInt", EVENT_SYSTEM_FOREGROUND, "UInt", EVENT_SYSTEM_FOREGROUND, 
-                "Ptr", 0, "Ptr", ForegroundCallback, "UInt", 0, "UInt", 0, "UInt", 0)
-        
+        ForegroundHook := DllCall("SetWinEventHook", "UInt", EVENT_SYSTEM_FOREGROUND, "UInt", EVENT_SYSTEM_FOREGROUND,
+            "Ptr", 0, "Ptr", ForegroundCallback, "UInt", 0, "UInt", 0, "UInt", 0)
+
         NameChangeCallback := CallbackCreate(ObjBindMethod(this, "OnTitleChange"), "F", 7)
-        NameChangeHook := DllCall("SetWinEventHook", "UInt", EVENT_OBJECT_NAMECHANGE, "UInt", EVENT_OBJECT_NAMECHANGE, 
-                "Ptr", 0, "Ptr", NameChangeCallback, "UInt", 0, "UInt", 0, "UInt", 0)
+        NameChangeHook := DllCall("SetWinEventHook", "UInt", EVENT_OBJECT_NAMECHANGE, "UInt", EVENT_OBJECT_NAMECHANGE,
+            "Ptr", 0, "Ptr", NameChangeCallback, "UInt", 0, "UInt", 0, "UInt", 0)
     }
 
     ; Callback for window change event
     static OnWindowChange(hWinEventHook, event, hwnd, idObject, idChild, dwEventThread, dwmsEventTime) {
         if (idObject != 0)
             return
-        
+
         activeWin := WinActive("A")
         if (activeWin == 0)
             return
-        
+
         if (activeWin != this.currentstate.LastActiveWindow) {
             this.currentstate.LastActiveWindow := activeWin
             this.currentstate.LastTitle := WinGetTitle(activeWin)
+
             if (this.GetBrowserHandle() != "") {
                 ; Skip URL update for excluded windows
                 if (!this.IsExcludedWindow(this.currentstate.LastTitle)) {
                     this.BrowserCacheEl(true)
                     this.UpdateURLCache()
                 } else {
-                    this.LastResult := {url: "", browser: this.GetBrowserHandle(), timestamp: A_TickCount}
+                    this.LastResult := { url: "", browser: this.GetBrowserHandle(), timestamp: A_TickCount, inBrowser: false }
                 }
-            } 
+            }
+
+            ; Cache UIA element for *any* active window (secondary priority)
+            try this.currentstate.ActiveWindow := UIA.ElementFromHandle(activeWin)
+            ; catch
+            ; this.currentstate.ActiveWindow := ""
         }
     }
-    
+
+
     ; Callback for title change event
     static OnTitleChange(hWinEventHook, event, hwnd, idObject, idChild, dwEventThread, dwmsEventTime) {
         activeWin := WinActive("A")
         if (activeWin == 0 || activeWin != hwnd)
             return
-        
+
         newTitle := WinGetTitle(activeWin)
         if (newTitle != this.currentstate.LastTitle) {
             this.currentstate.LastTitle := newTitle
+
             if (this.GetBrowserHandle() != "") {
                 ; If window is excluded, just clear the URL without trying to update
                 if (this.IsExcludedWindow(newTitle)) {
-                    this.LastResult := {url: "", browser: this.GetBrowserHandle(), timestamp: A_TickCount}
+                    this.LastResult := { url: "", browser: this.GetBrowserHandle(), timestamp: A_TickCount, inBrowser: false }
                 } else {
                     ; Otherwise, update URL
                     this.UpdateURLCache()
                 }
-            } 
+            }
+
+            ; Refresh cached UIA element too (secondary priority)
+            try this.currentstate.ActiveWindow := UIA.ElementFromHandle(activeWin)
+            ; catch
+            ; this.currentstate.ActiveWindow := ""
         }
     }
-    
+
+
     ; Update URL cache with retry mechanism and title-URL cache
     static UpdateURLCache() {
         ; Check if current title is in our cache
@@ -454,15 +530,15 @@ class On {
             this.LastResult := this.currentstate.TitleURLCache[currentTitle]
             return
         }
-        
+
         ; If not in cache, proceed with normal fetch
         this.UpdateURLCacheWorker()
-        
+
         ; After successful fetch, update the title-URL cache
         if (this.LastResult.url != "") {
             ; Add to cache
             this.currentstate.TitleURLCache[currentTitle] := this.LastResult
-            
+
             ; Trim cache if needed
             if (this.currentstate.TitleURLCache.Count > this.userconfig.MaxCacheEntries) {
                 ; Remove oldest entry (Map preserves insertion order in AHK v2)
@@ -475,22 +551,22 @@ class On {
             }
         }
     }
-    
+
     static UpdateURLCacheWorker(retryCount := 0) {
         ; Skip if window is excluded
         if (this.IsExcludedWindow(WinGetTitle(WinActive("A")))) {
-            try this.LastResult := {url: "", browser: this.GetBrowserHandle(), timestamp: A_TickCount}
+            try this.LastResult := { url: "", browser: this.GetBrowserHandle(), timestamp: A_TickCount, inBrowser: false }
             return
         }
-        
+
         ; Try to get the URL
         newResult := this.GetBrowserURL(true)
-        
+
         ; If we got a valid URL, update and we're done
         if (newResult.url != "") {
             try {
                 this.LastResult := newResult
-                
+
                 ; Also update the title-URL cache since we have a fresh URL
                 if (this.currentstate.LastTitle && this.LastResult.url != "") {
                     this.currentstate.TitleURLCache[this.currentstate.LastTitle] := this.LastResult
@@ -498,31 +574,31 @@ class On {
             }
             return
         }
-        
+
         ; If we're no longer in a browser, clear the result and we're done
         if (this.GetBrowserHandle() == "") {
-            try this.LastResult := {url: "", browser: "", timestamp: A_TickCount}
+            try this.LastResult := { url: "", browser: "", timestamp: A_TickCount, inBrowser: false }
             return
         }
-        
+
         ; Only retry if we're still in a browser but failed to get a URL
         if (retryCount < this.userconfig.MaxRetries) {
             ; Calculate the delay with exponential backoff
             backoffDelay := this.userconfig.RetryDelay * (2 ** retryCount)
-            
+
             ; Schedule the retry
             SetTimer(() => this.UpdateURLCacheWorker(retryCount + 1), -backoffDelay)
         }
     }
-    
-    ; Function to initialize URL cache 
+
+    ; Function to initialize URL cache
     static InitialURLCache() {
         ; Capture current active window
         activeWin := WinActive("A")
         if (activeWin != 0) {
             this.currentstate.LastActiveWindow := activeWin
             this.currentstate.LastTitle := WinGetTitle(activeWin)
-            
+
             ; If we're in a browser but not on an excluded window, cache the URL
             if (this.GetBrowserHandle() != "" && !this.IsExcludedWindow(this.currentstate.LastTitle)) {
                 this.BrowserCacheEl(true)
@@ -530,14 +606,14 @@ class On {
             }
         }
     }
-    
+
     ; Utility function to clear the title-URL cache
     static ClearTitleURLCache() {
         this.Initialize()
         this.currentstate.TitleURLCache := Map()
         return "Title-URL cache cleared"
     }
-    
+
     ; Debug function
     static DebugMsgBox() {
         this.Initialize()
@@ -551,18 +627,18 @@ class On {
             cacheEntries .= title . " -> " . result.url . "`n"
         }
         msg := "Debug Info:`n"
-             . "Mode: " . this.userconfig.Mode . "`n"
-             . "Active Window ID: " . activeWin . "`n"
-             . "Window Title: " . currentTitle . "`n"
-             . "Process Name: " . currentExe . "`n"
-             . "Window Class: " . currentClass . "`n"
-             . "Last URL: " . this.LastResult.url . "`n"
-             . "Last Browser: " . this.LastResult.browser . "`n"
-             . "Last Timestamp: " . this.LastResult.timestamp . "`n"
-             . "Current Browser: " . this.currentstate.Browser . "`n"
-             . "In Browser App: " . (this.currentstate.InBrowserApp ? "Yes" : "No") . "`n"
-             . "Cache Size: " . cacheCount . "`n"
-             . "Cache Entries:`n" . (cacheEntries ? cacheEntries : "None")
+            . "Mode: " . this.userconfig.Mode . "`n"
+            . "Active Window ID: " . activeWin . "`n"
+            . "Window Title: " . currentTitle . "`n"
+            . "Process Name: " . currentExe . "`n"
+            . "Window Class: " . currentClass . "`n"
+            . "Last URL: " . this.LastResult.url . "`n"
+            . "Last Browser: " . this.LastResult.browser . "`n"
+            . "Last Timestamp: " . this.LastResult.timestamp . "`n"
+            . "Current Browser: " . this.currentstate.Browser . "`n"
+            . "In Browser App: " . (this.currentstate.InBrowserApp ? "Yes" : "No") . "`n"
+            . "Cache Size: " . cacheCount . "`n"
+            . "Cache Entries:`n" . (cacheEntries ? cacheEntries : "None")
         MsgBox msg
     }
 }
